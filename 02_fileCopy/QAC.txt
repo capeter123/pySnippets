@@ -1,0 +1,9 @@
+VersionTag45
+StartProjectMarker
+FolderName=QAC
+SourcePath=E:\00_git\Python3\01_pySnippets\02_fileCopy
+OutputPath=output
+SubsPers=m3mc.p_s
+AnalPers=m3mc.p_a
+CompPers=m3mc.p_c
+EndContainedFilesMarker

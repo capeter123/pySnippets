@@ -1,0 +1,93 @@
+VersionTag45
+StartProjectMarker
+FolderName=TestR
+SourcePath=E:\03_projects\testCodeNavigator\QAC\test
+OutputPath=QAC\output
+SubsPers=QAC\1.p_s
+AnalPers=QAC\1.p_a
+CompPers=QAC\1.p_c
+EndContainedFilesMarker
+StartSubProjectMarker
+	StartProjectMarker
+	FolderName=01_System
+	SourcePath=01_System
+	OutputPath=QAC\output\01_System
+	SubsPers=QAC\1.p_s
+	AnalPers=QAC\1.p_a
+	CompPers=QAC\1.p_c
+	EndContainedFilesMarker
+	StartSubProjectMarker
+		StartProjectMarker
+		FolderName=Source
+		SourcePath=01_System\Source
+		OutputPath=QAC\output\01_System\Source
+		SubsPers=QAC\1.p_s
+		AnalPers=QAC\1.p_a
+		CompPers=QAC\1.p_c
+		01_System\Source\f_SystemDef.c
+		EndContainedFilesMarker
+	EndSubProjectMarker
+		
+	StartProjectMarker
+	FolderName=02_App
+	SourcePath=02_App
+	OutputPath=QAC\output\02_App
+	SubsPers=QAC\1.p_s
+	AnalPers=QAC\1.p_a
+	CompPers=QAC\1.p_c
+	EndContainedFilesMarker
+	StartSubProjectMarker
+		StartProjectMarker
+		FolderName=Can
+		SourcePath=02_App\Can
+		OutputPath=QAC\output\02_App\Can
+		SubsPers=QAC\1.p_s
+		AnalPers=QAC\1.p_a
+		CompPers=QAC\1.p_c
+		02_App\Can\f_CanMcalIf_Cfg.c
+		02_App\Can\f_CanMcalIf.c
+		02_App\Can\f_Can.c
+		EndContainedFilesMarker
+		StartProjectMarker
+		FolderName=CanTest
+		SourcePath=02_App\CanTest
+		OutputPath=QAC\output\02_App\CanTest
+		SubsPers=QAC\1.p_s
+		AnalPers=QAC\1.p_a
+		CompPers=QAC\1.p_c
+		02_App\CanTest\f_CanMcalIf_Cfg.c
+		02_App\CanTest\f_CanMcalIf.c
+		02_App\CanTest\f_Can.c
+		EndContainedFilesMarker
+	EndSubProjectMarker
+		
+	StartProjectMarker
+	FolderName=03_Module
+	SourcePath=03_Module
+	OutputPath=QAC\output\03_Module
+	SubsPers=QAC\1.p_s
+	AnalPers=QAC\1.p_a
+	CompPers=QAC\1.p_c
+	EndContainedFilesMarker
+	StartSubProjectMarker
+		StartProjectMarker
+		FolderName=TempCal
+		SourcePath=03_Module\TempCal
+		OutputPath=QAC\output\03_Module\TempCal
+		SubsPers=QAC\1.p_s
+		AnalPers=QAC\1.p_a
+		CompPers=QAC\1.p_c
+		EndContainedFilesMarker
+		StartSubProjectMarker
+			StartProjectMarker
+			FolderName=AroundTempCal
+			SourcePath=03_Module\TempCal\AroundTempCal
+			OutputPath=QAC\output\03_Module\TempCal\AroundTempCal
+			SubsPers=QAC\1.p_s
+			AnalPers=QAC\1.p_a
+			CompPers=QAC\1.p_c
+			03_Module\TempCal\AroundTempCal\f_AroundTempCalApp.c
+			EndContainedFilesMarker
+		EndSubProjectMarker
+	EndSubProjectMarker
+EndSubProjectMarker

@@ -56,23 +56,23 @@ class ctemplate:
         fh = open(self.__sourceName, mode = 'w', encoding='utf-8')
         cm = self.generateCommentsAtTop(self.__sourceName)
         cm += self.__starter
-        cm += '* INCLUDES\n'
+        cm += ' * INCLUDES\n'
         cm += self.__end
         cm += ("#include \"%s\"\n" %self.__headerName) 
         cm += self.__starter
-        cm += '* VARIABLE DEFINITION AND DECLARATION\n'
+        cm += ' * VARIABLE DEFINITION AND DECLARATION\n'
         cm += self.__end
         cm += self.__starter
-        cm += '* FUNCTION PROTOTYPES\n'
+        cm += ' * FUNCTION PROTOTYPES\n'
         cm += self.__end
         cm += '/* ============================================================================= *\n'
-        cm += '* FUNCTION: void TEST(void)\n'
-        cm += '* PURPOSE : \n'
-        cm += '* INPUT:    NONE\n'
-        cm += '* RETURN:   NONE\n'
-        cm += '* Author:   {0}\n'.format(self.__fileComments['@author'])
-        cm += '* Date:     {0}\n'.format(self.__fileComments['@date'])
-        cm += '* ============================================================================== */\n'
+        cm += ' * FUNCTION: void TEST(void)\n'
+        cm += ' * PURPOSE : \n'
+        cm += ' * INPUT:    NONE\n'
+        cm += ' * RETURN:   NONE\n'
+        cm += ' * Author:   {0}\n'.format(self.__fileComments['@author'])
+        cm += ' * Date:     {0}\n'.format(self.__fileComments['@date'])
+        cm += ' * ============================================================================== */\n'
         cm += ("\n"*5)
         cm += self.generateCommentsInTheEnd()
         fh.write(cm)
@@ -84,13 +84,19 @@ class ctemplate:
         cm += "#ifndef __%s_H\n" %self.__fileName.upper()
         cm += "#define __%s_H\n" %self.__fileName.upper()
         cm += self.__starter
-        cm += '* INCLUDES\n'
+        cm += ' * INCLUDES\n'
         cm += self.__end
         cm += self.__starter
-        cm += '* FUNCTION PROTOTYPES\n'
+        cm += ' * FUNCTION PROTOTYPES\n'
         cm += self.__end
         cm += self.__starter
-        cm += '* GLOBAL CONSTANT MACROS\n'
+        cm += ' * GLOBAL CONSTANT MACROS\n'
+        cm += self.__end
+        cm += self.__starter
+        cm += ' * GLOBAL DATA TYPES AND STRUCTURES\n'
+        cm += self.__end
+        cm += self.__starter
+        cm += ' * VARIABLE DEFINITION AND DECLARATION\n'
         cm += self.__end
         cm += ("\n"*5)
         cm += "#endif\n"

@@ -1,0 +1,99 @@
+VersionTag45
+StartProjectMarker
+FolderName=QAC
+SourcePath=E:\00_git\Python3\01_pySnippets\02_fileCopy
+OutputPath=output
+SubsPers=m3mc.p_s
+AnalPers=m3mc.p_a
+CompPers=m3mc.p_c
+EndContainedFilesMarker
+StartSubProjectMarker
+	StartProjectMarker
+	FolderName=src
+	SourcePath=src
+	OutputPath=output\src
+	SubsPers=m3mc.p_s
+	AnalPers=m3mc.p_a
+	CompPers=m3mc.p_c
+	EndContainedFilesMarker
+	StartSubProjectMarker
+		StartProjectMarker
+		FolderName=can
+		SourcePath=src\can
+		OutputPath=output\src\can
+		SubsPers=m3mc.p_s
+		AnalPers=m3mc.p_a
+		CompPers=m3mc.p_c
+		EndContainedFilesMarker
+		StartSubProjectMarker
+			StartProjectMarker
+			FolderName=canSrc
+			SourcePath=src\can\canSrc
+			OutputPath=output\src\can\canSrc
+			SubsPers=m3mc.p_s
+			AnalPers=m3mc.p_a
+			CompPers=m3mc.p_c
+			EndContainedFilesMarker
+			StartSubProjectMarker
+				StartProjectMarker
+				FolderName=hehe
+				SourcePath=src\can\canSrc\hehe
+				OutputPath=output\src\can\canSrc\hehe
+				SubsPers=m3mc.p_s
+				AnalPers=m3mc.p_a
+				CompPers=m3mc.p_c
+				EndContainedFilesMarker
+			EndSubProjectMarker
+			StartProjectMarker
+			FolderName=canSrc2
+			SourcePath=src\can\canSrc2
+			OutputPath=output\src\can\canSrc2
+			SubsPers=m3mc.p_s
+			AnalPers=m3mc.p_a
+			CompPers=m3mc.p_c
+			EndContainedFilesMarker
+			StartProjectMarker
+			FolderName=include
+			SourcePath=src\can\include
+			OutputPath=output\src\can\include
+			SubsPers=m3mc.p_s
+			AnalPers=m3mc.p_a
+			CompPers=m3mc.p_c
+			EndContainedFilesMarker
+		EndSubProjectMarker
+		StartProjectMarker
+		FolderName=temp
+		SourcePath=src\temp
+		OutputPath=output\src\temp
+		SubsPers=m3mc.p_s
+		AnalPers=m3mc.p_a
+		CompPers=m3mc.p_c
+		EndContainedFilesMarker
+		StartSubProjectMarker
+			StartProjectMarker
+			FolderName=canSrc
+			SourcePath=src\temp\canSrc
+			OutputPath=output\src\temp\canSrc
+			SubsPers=m3mc.p_s
+			AnalPers=m3mc.p_a
+			CompPers=m3mc.p_c
+			EndContainedFilesMarker
+			StartProjectMarker
+			FolderName=canSrc2
+			SourcePath=src\temp\canSrc2
+			OutputPath=output\src\temp\canSrc2
+			SubsPers=m3mc.p_s
+			AnalPers=m3mc.p_a
+			CompPers=m3mc.p_c
+			EndContainedFilesMarker
+			StartProjectMarker
+			FolderName=include
+			SourcePath=src\temp\include
+			OutputPath=output\src\temp\include
+			SubsPers=m3mc.p_s
+			AnalPers=m3mc.p_a
+			CompPers=m3mc.p_c
+			EndContainedFilesMarker
+		EndSubProjectMarker
+	EndSubProjectMarker
+EndSubProjectMarker
