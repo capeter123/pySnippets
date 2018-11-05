@@ -15,7 +15,7 @@ class Example(tk.Frame):
         self._drag_data = {"x": 0, "y": 0, "item": None}
 
         # create a couple of movable objects
-        self._create_token((100, 100), "white")
+        self._create_token((100, 100), "red")
         self._create_token((200, 100), "black")
 
         # add bindings for clicking, dragging and releasing over
@@ -28,6 +28,11 @@ class Example(tk.Frame):
                                  command=self.button_move)
         self.canvas.button2.config(bg="cyan",fg="black")
         self.canvas.button2.pack(side='top')
+
+        self.canvas.button3 = tk.Button(self.canvas, text="Button Test 2",
+                            command=self.button_move2)
+        self.canvas.button3.config(bg="cyan",fg="black")
+        self.canvas.button3.pack(side='top')
 
         self.canvas.tag_bind("button2", "<ButtonPress-1>", self.button_move)
 #-----------------------------------------------------------------------------
@@ -74,6 +79,12 @@ class Example(tk.Frame):
         # record the new position
         #self._drag_data["x"] = event.x
         #self._drag_data["y"] = event.y
+
+    def button_move2(self, event=None):
+        items = self.canvas.find_withtag('token')
+        print(items.__len__())
+        self.canvas.move(items[0], 15, 15)
+
 #-----------------------------------------------------------------------------
 if __name__ == "__main__":
     root = tk.Tk()
