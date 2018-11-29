@@ -1,9 +1,38 @@
-import tkinter as tk
-import time, random, math
+import csv
+import json
+import logging
+import math
 import os
-from tkinter import Canvas
-from threading import Thread
 import random
+import time
+import tkinter as tk
+from threading import Thread
+from tkinter import Canvas, Scrollbar, filedialog
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO) 
+formatter = logging.Formatter("%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s")
+# rq = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))
+# log_path = os.path.dirname(os.getcwd()) + '/Logs/'
+# log_name = log_path + rq + '.log'
+# logfile = log_name
+# fh = logging.FileHandler(logfile, mode='a')
+# fh.setLevel(logging.DEBUG)   
+# fh.setFormatter(formatter)
+# logger.addHandler(fh)
+ch = logging.StreamHandler()
+ch.setLevel(logging.WARNING)
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+''' signal plotter
+
+a signal plotter using tkinter canvas
+
+know issue:
+1. ruler开启情况下，水平拖动后，显示值不正确的问题
+'''
+
 
 lasty1, lasty2, lasty3, lasty4, lastx = 0, 0, 0, 0, 0
 testLines = []
@@ -17,42 +46,69 @@ colorList = ('#FFA54F', '#FF83FA', '#FF4500', '#FDF5E6', '#F08080', '#EEE9E9',
 
 class Line:
     def __init__(self,
-                 canvas:tk.Canvas=None,
+                 canvas: tk.Canvas = None,
                  id=None,
-                 offsety=0,
+                 decimal: int = 0,
+                 unit: str = '',
+                 valuetip: dict = {},
                  color='white',
+                 adaptation=True,
                  history=10000):
+        '''line
+
+        Keyword Arguments:
+            canvas {tk.Canvas} -- canvas where the line will be drawed on (default: {None})
+            id {str} -- unique id str (default: {None})
+            decimal {int} -- decimal point number of given value (default: {0})
+            unit {str} -- unit of value, eg. A/V (default: {None})
+            valuetip {dict} -- tip for given value (default: {None})
+            color {str} -- line color (default: {'white'})
+            adaptation {bool} -- auto adjust to whole canvas height (default: {True})
+            history {int} -- number of points of the line (default: {10000})
+        '''
+
         self.id = id
+        self.decimal = decimal
+        self.unit = unit
+        self.valuetip = valuetip
         self.tags = (id, )
-        self._offsety = offsety
-        self._offsetx = 0
-        self._scaley = 1.0
         self.selected = False
         self.color = color
+        self._offsety = 0
+        self._offsetx = 0
+        self._scaley = 1.0
         self._lastx = 0
         self._lasty = 0
         self._lastoffsety = 0
         self._lastscaley = 1.0
         self._canvas = canvas
-        self._canvasy = canvas.winfo_height() / 2 + 1
+        self._canvasy = canvas.winfo_height() / 2
         self._history = history if history < 20000 else 20000
         self._points = []
-        self._starty = 65535
+        self._valy = []
+        self._x = 0
+        self._starty = None
+        self._maxy = 0
+        self._miny = 0
+        self._adaptation = adaptation
 
     def setSelected(self, selected=False):
         self._canvas.lift(self.id)
         self.selected = selected
-        _tags = list(self.tags)
-        if selected:
-            # _tags.append('selected')
-            # self.tags = tuple(set(_tags))
-            self._canvas.itemconfig(self.id, width=3, fill='white')
-        elif not selected:
-            # if 'selected' in _tags:
-            #     _tags.remove('selected')
-            # self.tags = tuple(_tags)
-            self._canvas.itemconfig(self.id, width=1, fill=self.color)
-    
+        # _tags = list(self.tags)
+        # if selected:
+        # _tags.append('selected')
+        # self.tags = tuple(set(_tags))
+        # self._canvas.itemconfig(self.id, width=3, fill='white')
+        # elif not selected:
+        # if 'selected' in _tags:
+        #     _tags.remove('selected')
+        # self.tags = tuple(_tags)
+        # self._canvas.itemconfig(self.id, width=1, fill=self.color)
+
+    def setAdaptation(self, on=True):
+        self._adaptation = on
+
     def setStatus(self, status):
         self._status = status
 
@@ -61,46 +117,85 @@ class Line:
 
     def hide(self):
         self._canvas.itemconfig(self.id, state=tk.HIDDEN)
-    
+
     def show(self):
         self._canvas.itemconfig(self.id, state=tk.NORMAL)
 
-    def addLine(self, x, y):
-        if self._starty is None:
+    def addPoint(self, y):
+        if self._starty == None:
             self._starty = y
+            self._maxy = self._miny = y
 
-        if self._canvas != None:
-            if self._history != 0:
-                if len(self._points) >= self._history:
-                    del self._points[0]
-                self._points.append(y)
+        if y > self._maxy:
+            self._maxy = y
 
-                _lines = self._canvas.find_withtag(self.id)
-                _linecnt = _lines.__len__()
-                if _linecnt > self._history:
-                    self._canvas.delete(_lines[0])
-                    self._offsetx += 1 
-                    for _line in _lines:
-                        self._canvas.move(_line, -1, 0)
+        if y < self._miny:
+            self._miny = y
 
+        if self._history != 0:
+            if len(self._points) >= self._history:
+                self._offsetx = self._points[0][0]
+                del self._points[0]
+                del self._valy[0]
+            self._points.append((self._x, -y))
+            self._valy.append(y)
+
+            self._x += 1
+
+            # _lines = self._canvas.find_withtag(self.id)
+            # _linecnt = _lines.__len__()
+            # if _linecnt > self._history:
+            #     self._canvas.delete(_lines[0])
+            #     self._offsetx += 1
+            #     for _line in _lines:
+            #         self._canvas.move(_line, -1, 0)
+        if len(self._points) < 2:
+            return
+        self._starty = (self._miny + self._maxy) / 2
+
+        self._lastx = 0
+        self._lasty = self._points[0]
+
+    def addPoints(self, points=[]):
+        '''add points to the signal points list
+        
+        Keyword Arguments:
+            points {list} -- real y values (default: {[]})
+        '''
+
+        self._x += len(points)
+        self._valy.extend(points)
+        self._points.extend([(i, -y) for i, y in enumerate(points)])
+        self._miny = min(points.append(self._miny))
+        self._maxy = max(points.append(self._maxy))
+        self._starty = (self._miny + self._maxy) / 2
+
+        # for point in points:
+        #     self.addPoint(point)
+
+    def plot(self):
+        if self._canvas != None and len(self._points) > 1:
             offset_canvasy = self._canvasy + self._offsety
-            self._canvas.create_line(
-                (self._lastx - self._offsetx, (-self._lasty + offset_canvasy), x - self._offsetx,
-                    (-y + offset_canvasy)),
-                fill='white' if self.selected else self.color,
-                width=3 if self.selected else 1,
-                tags=self.tags,)
-                # activewidth=1,
-                # activefill='cyan')
-            self._canvas.scale(self._canvas.find_withtag(self.id)[-1], 0, -self._starty+offset_canvasy, 1.0, self._scaley)
-            self._lastx = x
-            self._lasty = y
+            self._canvas.delete(self.id)
+            color = self.color
+            if self.selected:
+                color = 'white'
+            _line = self._canvas.create_line(
+                self._points,
+                fill=color,
+                width=1,
+                tags=self.tags,
+                activefill='white',
+                activewidth=1)
+            self._canvas.move(_line, -self._offsetx, offset_canvasy)
+            self._canvas.scale(_line, 0, -self._starty +
+                               offset_canvasy, 1.0, self._scaley)
 
     def configTag(self, tag):
         '''config line tag name
         if exsited, remove it
         else add it to tags tuple
-        
+
         Arguments:
             tag {str} -- tag name
         '''
@@ -111,25 +206,140 @@ class Line:
             self.tags = tuple(_tags.remove(tag))
 
     def moveY(self, y=0):
+        '''move the lines in y direction by given distance
+
+        Keyword Arguments:
+            y {int} -- distance (default: {0})
+        '''
+
         self._lastoffsety = self._offsety
         self._offsety += y
-        for _line in self._canvas.find_withtag(self.id):
-            self._canvas.move(_line, 0, y)
+        # for _line in self._canvas.find_withtag(self.id):
+        #     self._canvas.move(_line, 0, y)
 
     def scaleY(self, scaley=1.0):
+        '''scale the lines in y direction by given factor
+
+        Keyword Arguments:
+            scaley {float} -- scale factor (default: {1.0})
+        '''
+
         if self._starty == 65535:
             return
         self._lastscaley = self._scaley
         self._scaley = self._scaley * scaley
+        # offset_canvasy = self._canvasy + self._offsety
+        # for _line in self._canvas.find_withtag(self.id):
+        #     self._canvas.scale(_line, 0, -self._starty+offset_canvasy, 1.0, scaley)
+
+    def adaptation(self):
+        if self._points.__len__() >= 2:
+            _gap = self._maxy - self._miny
+            self._scaley = (self._canvas.winfo_height()*0.8)/_gap
+            self._offsety = self._maxy + self._miny
+            self.moveY()
+            self.scaleY()
+            # self.scaleY(_scale/self._scaley)
+            # print(self.id, _gap, self._scaley, self._offsety)
+
+    def getY(self, canvasx):
+        '''get (x,y) value by canvasx
+
+        Arguments:
+            canvasx {int} -- x value
+        '''
+
+        if canvasx < 0:
+            canvasx = 0
+        elif canvasx >= self._history:
+            canvasx = self._history - 1
+
+        # if canvasx out of points range, return the last one point
+        if canvasx >= len(self._valy):
+            return self._valy[-1]
+        return self._valy[int(canvasx)]
+
+    def getTipY(self, canvasx):
+        '''get value Y tip by give canvasx
+        
+        Arguments:
+            canvasx {int} -- canvas x 
+        
+        Returns:
+            tip -- value Y tip
+        '''
+
+        _y = self.getY(canvasx)
+        _scale = 10**self.decimal if self.decimal != 0 else 1
+        _unit = self.unit
+        _tipy = str(round(_y/_scale, self.decimal))
+        if _scale == 1:
+            _tipy = str(round(_y/_scale))
+        if len(self.valuetip.keys()) == 0:
+            return _tipy + _unit
+        _tip = self.valuetip.get(_tipy, '')
+        if _tip != '':
+            _tipy = _tipy + _unit + ':' + _tip
+        return _tipy
+
+    def getScreenY(self, canvasx):
+        '''calculate screen y by given canvas x
+        
+        Arguments:
+            canvasx {int} -- canvas x
+        
+        Returns:
+            screeny
+        '''
+
+        _y = -self.getY(canvasx)
         offset_canvasy = self._canvasy + self._offsety
-        for _line in self._canvas.find_withtag(self.id):
-            self._canvas.scale(_line, 0, -self._starty+offset_canvasy, 1.0, scaley)
+        _y = (_y + self._starty)*self._scaley + offset_canvasy - self._starty
+        # _y = offset_canvasy - self._starty
+        return int(_y)
+
+    def getMaxY(self):
+        return self._maxy
+
+    def getMinY(self):
+        return self._miny
+
+    def setOffsetY(self, offsety=0):
+        self._offsety = offsety
+
+    def getOffsetY(self):
+        return self._offsety
+
+    def setScaleY(self, scaley=1.0):
+        self._scaley = scaley
+
+    def getScaleY(self):
+        return self._scaley
+
+    def getStartY(self):
+        return self._starty
+
+    def getCenterScreenY(self):
+        return (self._canvasy + self._offsety - self._starty)
+
+    def setHistory(self, history):
+        self._history = history
+
+    def getHistory(self):
+        return self._history
+
+    def getColor(self):
+        return self.color
+
+    def getLineLen(self):
+        return len(self._points)
 
     def restore(self):
-        for _line in self._canvas.find_withtag(self.id):
-            self._canvas.move(_line, 0, -self._offsety)
+        # for _line in self._canvas.find_withtag(self.id):
+        #     self._canvas.move(_line, 0, -self._offsety)
         self._offsety = 0
         self._scaley = 1.0
+        self.selected = False
 
 
 class Signal(Line):
@@ -141,12 +351,17 @@ class Signal(Line):
         self.tags = (id, 'signal', )
 
 
-class Ploter(Canvas):
-    def __init__(self, parent:tk.Frame=None, interval=20, linenum=10, save=True):
+class Plotter(Canvas):
+    def __init__(self, parent: tk.Frame = None, interval=20, linenum=10, save=True, adaptation=True, lengthx=20000):
         Canvas.__init__(self, parent, bg='#345', closeenough=2)
         parent.update_idletasks()
         self.pack(fill=tk.BOTH, expand=True)
         self.update_idletasks()
+        self.hScroll = Scrollbar(parent, orient='horizontal',
+                                 command=self.hScrolled)
+        self.hScroll.pack(side=tk.BOTTOM, fill=tk.X)
+        self.configure(yscrollcommand=None,
+                       xscrollcommand=self._canvashScrolled)
         self.bind("<Button-1>", self.__mouseDown)
         self.bind("<MouseWheel>", self._mouseScale)
         self.bind("<B1-Motion>", self.__mouseDownMove)
@@ -154,20 +369,32 @@ class Ploter(Canvas):
         self.bind("<Enter>", self.__mouseEnter)
         self.bind("<Leave>", self.__mouseLeave)
         self.bind("<Motion>", self.__mouseHoverMove)
+        self["xscrollincrement"] = 1
+        self["yscrollincrement"] = 1
         self.__dataList = []
+        self._rulerdata = [0]*linenum
         self.x = 0
+        self.scrollx = 3.0
         self.offsety = 0
         self._interval = interval  # main loop interval to handle input data
+        self._lengthx = lengthx  # scrollregion x
         self._rulerOn = False
-        self._dragOn = False
-        self._gridOn = True
-        self._loopOn = False
+        self._dragOn = False  # enable mouse move items
+        self._gridOn = True  # draw grid lines
+        self._loopOn = True
+        self._tipOn = False
+        self._adaptation = adaptation
         self._ruler = None
-        self._save = save
+        self._rulerX = 0
+        self._save = save  # 保存数据
+        self._dataWriter = None  # 数据保存writer
+        self._datafile = ''  # 保存文件名称
+        self._scrollOn = False
         self._lineNum = linenum
+        self._firststart = True
         # this data is used to keep track of an item being dragged
-        # in this app, only vertical position 
-        self._drag_data = {"sx":0, "sy":0, "x": 0, "y": 0, "item": None}
+        # in this app, only vertical position
+        self._drag_data = {"sx": 0, "sy": 0, "x": 0, "y": 0, "item": None}
         self.__initLineList(self._lineNum)
         self.after(200, self.__initCanvas)
 
@@ -178,10 +405,25 @@ class Ploter(Canvas):
             _item = self._drag_data['item']
             if _item._lastoffsety != _item._offsety:
                 pass
+
         self.after(20, self.__main)
 
     def __loop(self):
+        '''mainloop
+        '''
+
         if self._loopOn:
+            for _line in self._lines:
+                # _line.adaptation()
+                _line.plot()
+                pass
+
+            self.setRulerValue()
+
+            self.autoScrollToEnd()
+
+            self.setSignalTip()
+
             self.after(self._interval, self.__loop)
         else:
             pass
@@ -190,13 +432,16 @@ class Ploter(Canvas):
         self.update_idletasks()
         self._width = self.winfo_width()
         self._height = self.winfo_height()
+        self._originHeight = self.winfo_height()
         self.drawGridLines(50)
+        self.configure(scrollregion=(0, 0, self._lengthx, self.winfo_height()))
+        self.xview_moveto(0)
         self.bind("<Configure>", self.__resize)
         self.__loop()
 
     def setLoopStatus(self, on=False):
         '''set the mainloop status
-        
+
         Keyword Arguments:
             on {bool} -- status (default: {False})
         '''
@@ -205,7 +450,7 @@ class Ploter(Canvas):
 
     def setDrag(self, on=False):
         '''enable or disable the mouse drag
-        
+
         Keyword Arguments:
             on {bool} -- status (default: {False})
         '''
@@ -214,7 +459,7 @@ class Ploter(Canvas):
 
     def setRuler(self, on=False):
         '''show or hide coordinates when mouse move
-        
+
         Keyword Arguments:
             on {bool} -- true for show ruler (default: {False})
         '''
@@ -223,85 +468,143 @@ class Ploter(Canvas):
 
     def setInterval(self, interval=20):
         '''set mainloop interval
-        
+
         Keyword Arguments:
-            interval {int} -- interval (default: {20})
+            interval {int} -- loop interval (default: {20})
         '''
 
         self._interval = interval
 
     def setGrid(self, on=True):
         '''show or hide the grids
-        
+
         Keyword Arguments:
             on {bool} -- true for show grid lines (default: {True})
         '''
 
         self._gridOn = on
 
-    def setSignalTip(self, on=True):
-        if on:
+    def setSignalTip(self):
+        if self._tipOn:
+            self.delete('sigtip')
             maxlen = max([len(line.id) for line in self._lines])
             gap = (maxlen-2)*7
             gap = max(gap, 50)
-            print(gap)
             for i, line in enumerate(self._lines):
                 _row = int(i/5)
-                _column = i%5
+                _column = i % 5
                 self.create_rectangle(
-                    10+gap*_column, 10+20*_row, gap*_column+20, 20*_row+20, fill=line.color, tags=('tip', 'tip'+line.id,))
-                self.create_text(25 + gap*_column, 15+20*_row, text=line.id,
-                                 fill='white', font=('微软雅黑', 8), tags=('tip', 'tip'+line.id,), anchor='w')
+                    self.canvasx(10)+gap*_column, 10+20*_row, gap*_column+self.canvasx(10) + 10, 20*_row+20, 
+                    fill=line.color, tags=('sigtip', 'tip'+line.id,))
+                self.create_text(self.canvasx(10) + 15 + gap*_column, 15+20*_row, text=line.id,
+                                 fill='white', font=('微软雅黑', 8), tags=('sigtip', 'tip'+line.id,), anchor='w')
         else:
-            if self.find_withtag('tip'):
-                self.delete('tip')
+            self.delete('sigtip')
 
-    def clearstrip(self, p, color):  # Fill strip with background color
+    def setRulerValue(self):
+        '''draw ruler and valuey tip by given rulerx
+        '''
+
+        self.delete('valuey')
+        self.delete('ruler')
+        if not self._rulerOn:
+            return
+        x = self.canvasx(self._rulerX)
+        self.create_line(
+            (x, 0, x, self._height), fill="#FFFAFA", tags=('ruler', ))
+        for _line in self._lines:
+            if x > _line.getLineLen():
+                continue
+            tipy = _line.getTipY(x)
+            valuey = _line.getScreenY(x)
+            y = valuey
+            # self.create_rectangle(x+5, y-15, x+15, y-5,  tags=('valuey', ), fill=_line.color, outline=_line.color)
+            self.create_text(x+5, y-5, text=tipy, fill=_line.color,
+                             font=('微软雅黑', 10), tags=('valuey', ), anchor='w')
+            pass
+
+    def autoScrollToEnd(self):
+        '''scrool canvas to signal end when needed
+        '''
+
+        if self._scrollOn is True:
+            maxlen = max([_line.getLineLen() for _line in self._lines])
+            if maxlen < self._width * 0.75:
+                maxlen = 0
+            elif maxlen > self._lengthx - self._width * 0.25:
+                maxlen = int(self._lengthx - self._width * 0.25)
+            else:
+                maxlen = maxlen - int(self._width * 0.75)
+            fraction = maxlen / self._lengthx
+            self.xview_moveto(fraction)
+        else:
+            pass
+
+    def hScrolled(self, *args):
+        self.xview(*args)
+        # delta = self.canvasx(10) - self.scrollx
+        # print(self.canvasx(10), delta)
+        # for _tip in self.find_withtag('sigtip'):
+        #     self.move(_tip, delta, 0)
+        # self.scrollx = self.canvasx(10)
+
+    def _canvashScrolled(self, *args):
+        self.hScroll.set(*args)
+        # delta = self.canvasx(10) - self.scrollx
+        # for _tip in self.find_withtag('sigtip'):
+        #     self.move(_tip, delta, 0)
+        # self.scrollx = self.canvasx(10)
+
+    def clear(self, p, color):  # Fill strip with background color
         self.bg = color  # save background color for scroll
         self.data = None  # clear previous data
         self.x = 0
         p.tk.call(p, 'put', color, '-to', 0, 0, p['width'], p['height'])
 
     def drawGridLines(self, width=50):
-        offsety = math.floor(self.winfo_height() / 2) + 1
-        offsetx = self.winfo_width()
-        __grid = self.find_withtag('grid')
-        if __grid:
-            self.delete('grid')
+        '''draw grid lines
+        
+        Keyword Arguments:
+            width {int} -- distance between grid lines (default: {50})
+        '''
+
+        offsety = math.floor(self._height / 2) + 1
+        offsetx = self._lengthx if self._lengthx > self.winfo_width() else self.winfo_width()
+        self.delete('grid')
         self.create_line(
             (0, offsety, offsetx, offsety),
             fill="#708090",
             dash=(2, 6),
             tags=('grid'))
         if self._gridOn is True:
-            xnum = math.floor(self.winfo_width() / width)
+            xnum = math.floor(offsetx / width)
             for i in range(xnum):
                 self.create_line(
-                    (i * 50 + 50, 0, i * 50 + 50, self.winfo_height()),
+                    (i * 50 + 50, 0, i * 50 + 50, self._height),
                     fill="#708090",
                     dash=(1, 6),
                     tags=('grid'))
-            ynum = math.floor(self.winfo_height() / (2 * width))
+            ynum = math.floor(self._height / (2 * width))
             for j in range(ynum):
                 self.create_line(
-                    (0, j * 50 + 50 + offsety, self.winfo_width(),
+                    (0, j * 50 + 50 + offsety, offsetx,
                      j * 50 + 50 + offsety),
                     fill="#708090",
                     dash=(2, 6),
                     tags=('grid'))
                 self.create_line(
-                    (0, -j * 50 - 50 + offsety, self.winfo_width(),
+                    (0, -j * 50 - 50 + offsety, offsetx,
                      -j * 50 - 50 + offsety),
                     fill="#708090",
                     dash=(2, 6),
                     tags=('grid'))
-    
+
     def getSignalbyId(self, id):
-        '''根据id获取signal
-        
+        '''get signal by given id
+
         Arguments:
             id {str} -- signal id
-        
+
         Returns:
             signal -- signal
         '''
@@ -312,20 +615,124 @@ class Ploter(Canvas):
         return None
 
     def getSignalbyTags(self, tags):
-        '''根据tags获取signal
-        
+        '''get signal by given tag list
+
         Arguments:
-            tags {list} -- 选中某个signal的时刻，该signal所具有的tags集合
-                因为有id存在，能保证唯一性
-        
+            tags {list} -- signal's tag list
+
         Returns:
-            [signal] -- 信号
+            [signal] -- signal
         '''
 
         for _line in self._lines:
-            if set(_line.tags) & set(tags) == set(tags):  # 求交集
+            if _line.id in tags:  # 求交集
                 return _line
         return None
+
+    def sortSignals(self):
+        '''sort signals by order in self._lines
+        '''
+
+        self.delete('auxiliary')
+        _height = self._height - 40  # 上下各留20像素
+        _lines = [line for line in self._lines if len(line._points) > 0]
+        if len(_lines) == 0:
+            return
+        _blockHeight = _height / len(_lines)
+
+        for i, _line in enumerate(self._lines):
+            desty = 20 + (i+1)*_blockHeight - _blockHeight / 2
+            y = self._height / 2 - desty
+            self.create_line(0, desty, self._lengthx, desty,
+                             fill='red', dash=(6, 6), tags=('auxiliary', ))
+            _offsety = (_line.getMaxY() + _line.getMinY()) / 2 - y
+            _offsety = _offsety + (self._height - self._originHeight) / 2
+            _line.setOffsetY(_offsety)
+
+            _nowHeight = (_line.getMaxY() - _line.getMinY()) * \
+                _line.getScaleY()
+            _delta = 1
+            if _nowHeight > 0:
+                _delta = (_blockHeight-10) / _nowHeight
+            _line.setScaleY(_delta * _line.getScaleY())
+
+    def resortSignals(self):
+        # if self.find_withtag('auxiliary'):
+        self.delete('auxiliary')
+        for _line in self._lines:
+            _line.restore()
+
+    def stopSave(self):
+        if self._dataWriter is not None:
+            self._dataWriter.close()
+
+    def loadData(self, filename):
+        '''load csv file stored
+        
+        Arguments:
+            filename {str} -- csv file name
+        '''
+        # if self._loopOn is True:
+            # return
+
+        with open(filename, mode='r', encoding='gbk') as f:
+            reader = csv.reader(f)
+            ids = next(reader)
+            historys = next(reader)
+            colors = next(reader)
+            decimals = next(reader)
+            units = next(reader)
+            valtips = next(reader)
+
+            if set([len(ids), len(historys), len(colors), len(decimals), len(units), len(valtips)]) == 1:
+                logger.warning('error param count in csv file')
+                return
+
+            self._lines = []
+            num = len(ids)
+            for i in range(num):
+                _tips = {}
+                if valtips[i] != '{}':
+                    print(valtips[i])
+                    _tips = json.loads(valtips[i])
+                _line = Signal(id=ids[i], canvas=self,
+                               history=20000, color=colors[i], 
+                               unit=str(units[i]), decimal=int(decimals[i]), 
+                               valuetip=_tips)
+                self._lines.append(_line)
+            try:
+                for row in reader:
+                    for i, _line in enumerate(self._lines):
+                        _line.setHistory(_line.getLineLen() + 1)
+                        _line.addPoint(float(row[i]))
+            except Exception as e:
+                logger.error(str(e))
+
+        with open(filename, mode='r', encoding='gbk') as f:
+            self._lines = []
+            lines = f.readlines()
+            datalen = len(lines)
+            # ids = lines[0].strip().split(',')
+            # historys = lines[1].strip().split(',')
+            # colors = lines[2].strip().split(',')
+            # decimals = lines[3].strip().split(',')
+            # units = lines[4].strip().split(',')
+            # valtips = lines[5].strip().split(',')
+            data = lines[6:]
+            num = len(ids)
+            for i in range(num):
+                _tips = {}
+                if valtips[i] != '{}':
+                    _tips = json.loads(valtips[i])
+                _line = Signal(id=ids[i], canvas=self,
+                               history=20000, color=colors[i], 
+                               unit=str(units[i]), decimal=int(decimals[i]), 
+                               valuetip=_tips)
+                self._lines.append(_line)
+            for i, _line in enumerate(self._lines):
+                _line.setHistory(datalen)
+                _line.addPoints([float(row.strip().split(',')[i])
+                                 for row in data])
 
     def _selectOneSignal(self, id):
         for _line in self._lines:
@@ -334,9 +741,15 @@ class Ploter(Canvas):
             else:
                 _line.setSelected(False)
 
-    def __initLineList(self, lineNumber):
-        '''init all lines by given number
-        
+    def deleteSignal(self, id):
+        for _line in self._lines:
+            if _line.id == id:
+                _line.setSelected(False)
+                _line.hide()
+
+    def __initLineList(self, lineNumber, ids=[], decimals=[], valuetips=[], units=[]):
+        '''init all lines by given number and other params
+
         Arguments:
             number {int} -- number of lines
         '''
@@ -345,12 +758,40 @@ class Ploter(Canvas):
         self._lines = []  #
         self._currentId = None  # 当前选择曲线id
         _list = list(colorList)
+        _lineid = []
+        _linedecimals = []
+        _linevaluetips = []
+        _lineunits = []
+        if len(ids) == lineNumber:
+            _lineid = ids
+        else:
+            _lineid = list(range(0, lineNumber))
+
+        if len(decimals) == lineNumber:
+            _linedecimals = decimals
+        else:
+            _linedecimals = [0]*lineNumber
+
+        if len(valuetips) == lineNumber:
+            _linevaluetips = valuetips
+        else:
+            _linevaluetips = [{}]*lineNumber
+
+        if len(units) == lineNumber:
+            _lineunits = units
+        else:
+            _lineunits = ['']*lineNumber
+
         while len(self._lines) < lineNumber:
+            _len = len(self._lines)
             _index = random.randint(0, len(_list) - 1)
             _random = _list[_index]
             _list.remove(_random)
-            _line = Signal(id=str(len(self._lines)), canvas=self,
-                           history=10000, color=_random)
+            _line = Signal(id=str(_lineid[_len]), canvas=self,
+                           history=20000, color=_random, 
+                           decimal=_linedecimals[_len], 
+                           unit=_lineunits[_len], 
+                           valuetip=dict(_linevaluetips[_len]))
             self._lines.append(_line)
 
     def __resize(self, event):
@@ -360,7 +801,10 @@ class Ploter(Canvas):
         for _line in self._lines:
             _line.setSelected(False)
             _line.moveY(_deltay)
+        for _item in self.find_withtag('auxiliary'):
+            self.move(_item, 0, _deltay)
         self._height = self.winfo_height()
+        self._width = self.winfo_width()
 
     def _mouseScale(self, event):
         if self._drag_data["item"] is None:
@@ -378,22 +822,23 @@ class Ploter(Canvas):
         # print('down', event.x, event.y)
         # _items = self.find_closest(event.x, event.y)
         # print('closest', self.gettags(_items[0]))
-        _items1 = self.find_overlapping(event.x-3, event.y-3, event.x+3, event.y+3)
+        _items1 = self.find_overlapping(
+            event.x-3, event.y-3, event.x+3, event.y+3)
         _currentItem = None
         for _item in _items1:
             if 'signal' in self.gettags(_item):
                 _currentItem = _item
                 break
-        if _currentItem != None:
+        if _currentItem is not None:
             _tags = self.gettags(_currentItem)
-            print(_tags)
             self._drag_data['item'] = self.getSignalbyTags(_tags)
             self._drag_data['sy'] = event.y
             self._drag_data['sx'] = event.x
             self._drag_data['y'] = event.y
             self._drag_data['x'] = 0
-            
+
             self._selectOneSignal(self._drag_data['item'].id)
+            self.tag_raise(self._drag_data['item'].id)  # raise this signal
 
     def __mouseDownMove(self, event):
         '''Handle dragging of an object'''
@@ -410,47 +855,84 @@ class Ploter(Canvas):
 
     def __mouseHoverMove(self, event):
         if self._rulerOn:
-            delta_x = event.x - self.__rulerX
-            self.after(80, self.__delayMove, delta_x)
-            self.__rulerX = event.x
+            # delta_x = event.x - self._rulerX
+            # self.after(80, self.__delayMove, delta_x)
+            self._rulerX = event.x
             # print(self.gettags(self.find_withtag(tk.CURRENT)))
 
     def __delayMove(self, delta_x):
-        self.move(self._ruler, delta_x, 0)
+        if self._ruler:
+            self.move(self._ruler, delta_x, 0)
 
     def __mouseUp(self, event):
-        print(event.x, event.y)
+        # print(event.x, event.y)
+        pass
 
     def __mouseEnter(self, event):
         if self._rulerOn:
-            self._ruler = self.create_line(
-                (event.x, 0, event.x, self.winfo_height()), fill="#FFFAFA")
-            self.__rulerX = event.x
+            #     self._ruler = self.create_line(
+            #         (event.x, 0, event.x, self._height), fill="#FFFAFA")
+            self._rulerX = event.x
+        pass
 
     def __mouseLeave(self, event):
-        if self._ruler is not None:
-            self.delete(self._ruler)
+        self.delete('ruler')
+        self._rulerX = 0
 
     # below code just for test
 
     def _autoTest(self):
-        y1 = 10 * math.sin(0.02 * math.pi * self.x)
-        y2 = 9 + 5 * (random.random() - 0.5)
-        y3 = 50
-        y4 = -30 if (self.x % 20 == 0) else 20
-
         if len(self._lines) == self._lineNum:
             self._lines = []
-            self._lines.append(Signal(id='Y1eqeqeqeqeqefrrrrrrq', canvas=self, history=100, color='#ff4'))
-            self._lines.append(Signal(id='Y2', canvas=self, history=10000, color='#f40'))
-            self._lines.append(Signal(id='Y3', canvas=self, history=10000, color='#4af'))
-            self._lines.append(Signal(id='Y4', canvas=self, history=10000, color='#080'))
-            self.setSignalTip()
+            valuetip = {
+                "0": "disable",
+                "1": "enable",
+                "2": "rsvd"
+            }
+            self._lines.append(
+                Signal(id='Y1', canvas=self, history=100, color='#ff4'))
+            self._lines.append(
+                Signal(id='Y2', canvas=self, history=10000, color='#f40', decimal=2, unit='A'))
+            self._lines.append(Signal(id='Y3', canvas=self,
+                                      history=10000, color='#4af'))
+            self._lines.append(Signal(id='Y4', canvas=self,
+                                      history=10000, color='#080'))
+            self._lines.append(
+                Signal(id='Y5', canvas=self, history=10000, color='yellow', valuetip=valuetip))
+            if self._save:
+                self._datafile = 'data/' + time.asctime(
+                    time.localtime(time.time())) + '.csv'
+                logger.debug(self._datafile)
+                with open(self._datafile, mode='a', encoding='gbk') as f:
+                    self._dataWriter = csv.writer(f)
+                    self._dataWriter.writerow(
+                        [line.id for line in self._lines])
+                    self._dataWriter.writerow(
+                        [line.getHistory() for line in self._lines])
+                    self._dataWriter.writerow(
+                        [line.color for line in self._lines])
+                    self._dataWriter.writerow(
+                        [line.decimal for line in self._lines])
+                    self._dataWriter.writerow(
+                        [line.unit for line in self._lines])
+                    self._dataWriter.writerow(
+                        [json.dumps(line.valuetip) for line in self._lines])
 
-        self._lines[0].addLine(self.x, y1)
-        self._lines[1].addLine(self.x, y2)
-        self._lines[2].addLine(self.x, y3)
-        self._lines[3].addLine(self.x, y4)
+        y1 = 10 * math.sin(0.02 * math.pi * self.x)
+        y2 = 20 + 5 * (random.random() - 0.5)
+        y3 = 50
+        y4 = -30 if (self.x % 20 == 0) else 20
+        y5 = random.randint(1, 2)
+
+        self._lines[0].addPoint(y1)
+        self._lines[1].addPoint(y2)
+        self._lines[2].addPoint(y3)
+        self._lines[3].addPoint(y4)
+        self._lines[4].addPoint(y5)
+        if self._save:
+            with open(self._datafile, mode='a', encoding='gbk') as f:
+                self._dataWriter = csv.writer(f)
+                self._dataWriter.writerow([y1, y2, y3, y4, y5])
 
         self.x = self.x + 1
         self.after(10, self._autoTest)
@@ -473,10 +955,8 @@ class Ploter(Canvas):
             _line.setSelected(True)
 
     def _restoreTest(self):
-        self._lines[0].restore()
-        self._lines[1].restore()
-        self._lines[2].restore()
-        self._lines[3].restore()
+        for _line in self._lines:
+            _line.restore()
 
     def _scaleTest(self):
         _scale = random.randint(1, 3)
@@ -484,7 +964,21 @@ class Ploter(Canvas):
             self._drag_data['item'].scaleY(_scale)
 
     def _tipTest(self):
-        self.setSignalTip(on=False)
+        self._tipOn = True if self._tipOn is False else False
+
+    def _sortTest(self):
+        self.sortSignals()
+
+    def _resortTest(self):
+        self.resortSignals()
+
+    def _scrollTest(self):
+        self._scrollOn = True if self._scrollOn is False else False
+
+    def _loadTest(self):
+        filename = filedialog.askopenfilename(
+            title='载入数据', filetypes=[('csv', '*.csv')])
+        self.loadData(filename)
 
 
 if __name__ == '__main__':
@@ -494,15 +988,22 @@ if __name__ == '__main__':
     frame = tk.Frame(root, width=900, height=300)
     frame.pack(fill=tk.BOTH, expand=True)
 
-    plot = Ploter(frame)
+    plot = Plotter(frame)
 
     tk.Button(root, text='start', command=plot._autoTest).pack(side=tk.LEFT)
     tk.Button(root, text='ruler', command=plot._toggleRuler).pack(side=tk.LEFT)
     tk.Button(root, text='drag', command=plot._toggleDrag).pack(side=tk.LEFT)
     tk.Button(root, text='grid', command=plot._toggleGrid).pack(side=tk.LEFT)
     tk.Button(root, text='select', command=plot._selectTest).pack(side=tk.LEFT)
-    tk.Button(root, text='restore', command=plot._restoreTest).pack(side=tk.LEFT)
-    tk.Button(root, text='scale current', command=plot._scaleTest).pack(side=tk.LEFT)
+    tk.Button(root, text='restore',
+              command=plot._restoreTest).pack(side=tk.LEFT)
+    tk.Button(root, text='scale current',
+              command=plot._scaleTest).pack(side=tk.LEFT)
     tk.Button(root, text='tip', command=plot._tipTest).pack(side=tk.LEFT)
+    tk.Button(root, text='sort', command=plot._sortTest).pack(side=tk.LEFT)
+    tk.Button(root, text='resort', command=plot._resortTest).pack(side=tk.LEFT)
+    tk.Button(root, text='scroll', command=plot._scrollTest).pack(side=tk.LEFT)
+    tk.Button(root, text='load data',
+              command=plot._loadTest).pack(side=tk.LEFT)
 
     root.mainloop()
