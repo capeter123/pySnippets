@@ -29,8 +29,6 @@ logger.addHandler(ch)
 
 a signal plotter using tkinter canvas
 
-know issue:
-1. ruler开启情况下，水平拖动后，显示值不正确的问题
 '''
 
 
@@ -73,6 +71,7 @@ class Line:
         self.valuetip = valuetip
         self.tags = (id, )
         self.selected = False
+        self.hidden = False
         self.color = color
         self._offsety = 0
         self._offsetx = 0
@@ -117,9 +116,13 @@ class Line:
 
     def hide(self):
         self._canvas.itemconfig(self.id, state=tk.HIDDEN)
+        self.hidden = True
+        self.selected = False
+        self.restore()
 
     def show(self):
         self._canvas.itemconfig(self.id, state=tk.NORMAL)
+        self.hidden = False
 
     def addPoint(self, y):
         if self._starty == None:
@@ -153,6 +156,10 @@ class Line:
             return
         self._starty = (self._miny + self._maxy) / 2
 
+        # if self._adaptation is True:
+        #     if (self._maxy - self._miny)*self._scaley > self._canvas.winfo_height()*0.95:
+        #         self._scaley = self._scaley * self._canvas.winfo_height()*0.95 / (self._maxy - self._miny)
+
         self._lastx = 0
         self._lasty = self._points[0]
 
@@ -174,7 +181,7 @@ class Line:
         #     self.addPoint(point)
 
     def plot(self):
-        if self._canvas != None and len(self._points) > 1:
+        if self._canvas != None and len(self._points) > 1 and self.hidden is False:
             offset_canvasy = self._canvasy + self._offsety
             self._canvas.delete(self.id)
             color = self.color
@@ -234,11 +241,12 @@ class Line:
 
     def adaptation(self):
         if self._points.__len__() >= 2:
-            _gap = self._maxy - self._miny
-            self._scaley = (self._canvas.winfo_height()*0.8)/_gap
-            self._offsety = self._maxy + self._miny
-            self.moveY()
-            self.scaleY()
+            _gap = max(self._maxy - self._miny, 1)
+            tmp = (self._canvas.winfo_height()*0.9)/_gap
+            if self._canvas.winfo_height()*0.9 > _gap*self._scaley:
+                return
+            self._scaley = tmp
+            self._offsety = (self._maxy + self._miny)/2
             # self.scaleY(_scale/self._scaley)
             # print(self.id, _gap, self._scaley, self._offsety)
 
@@ -385,7 +393,7 @@ class Plotter(Canvas):
         self._tipOn = False
         self._adaptation = adaptation
         self._ruler = None
-        self._rulerX = 0
+        self._rulerX = -1
         self._save = save  # 保存数据
         self._dataWriter = None  # 数据保存writer
         self._datafile = ''  # 保存文件名称
@@ -491,13 +499,16 @@ class Plotter(Canvas):
             gap = (maxlen-2)*7
             gap = max(gap, 50)
             for i, line in enumerate(self._lines):
+                color = line.color
+                if line.hidden:
+                    color = "#aaa"
                 _row = int(i/5)
                 _column = i % 5
                 self.create_rectangle(
                     self.canvasx(10)+gap*_column, 10+20*_row, gap*_column+self.canvasx(10) + 10, 20*_row+20, 
-                    fill=line.color, tags=('sigtip', 'tip'+line.id,))
+                    fill=color, tags=('sigtip', 'tip'+line.id,))
                 self.create_text(self.canvasx(10) + 15 + gap*_column, 15+20*_row, text=line.id,
-                                 fill='white', font=('微软雅黑', 8), tags=('sigtip', 'tip'+line.id,), anchor='w')
+                                 fill=color, font=('微软雅黑', 8), tags=('sigtip', 'tip'+line.id,), anchor='w')
         else:
             self.delete('sigtip')
 
@@ -507,13 +518,13 @@ class Plotter(Canvas):
 
         self.delete('valuey')
         self.delete('ruler')
-        if not self._rulerOn:
+        if not self._rulerOn or self._rulerX < 0:
             return
         x = self.canvasx(self._rulerX)
         self.create_line(
             (x, 0, x, self._height), fill="#FFFAFA", tags=('ruler', ))
         for _line in self._lines:
-            if x > _line.getLineLen():
+            if x > _line.getLineLen() or _line.hidden:
                 continue
             tipy = _line.getTipY(x)
             valuey = _line.getScreenY(x)
@@ -635,12 +646,12 @@ class Plotter(Canvas):
 
         self.delete('auxiliary')
         _height = self._height - 40  # 上下各留20像素
-        _lines = [line for line in self._lines if len(line._points) > 0]
+        _lines = [line for line in self._lines if (len(line._points) > 0 and line.hidden != True)]
         if len(_lines) == 0:
             return
         _blockHeight = _height / len(_lines)
 
-        for i, _line in enumerate(self._lines):
+        for i, _line in enumerate(_lines):
             desty = 20 + (i+1)*_blockHeight - _blockHeight / 2
             y = self._height / 2 - desty
             self.create_line(0, desty, self._lengthx, desty,
@@ -712,12 +723,6 @@ class Plotter(Canvas):
             self._lines = []
             lines = f.readlines()
             datalen = len(lines)
-            # ids = lines[0].strip().split(',')
-            # historys = lines[1].strip().split(',')
-            # colors = lines[2].strip().split(',')
-            # decimals = lines[3].strip().split(',')
-            # units = lines[4].strip().split(',')
-            # valtips = lines[5].strip().split(',')
             data = lines[6:]
             num = len(ids)
             for i in range(num):
@@ -826,8 +831,18 @@ class Plotter(Canvas):
             event.x-3, event.y-3, event.x+3, event.y+3)
         _currentItem = None
         for _item in _items1:
-            if 'signal' in self.gettags(_item):
+            _tags = self.gettags(_item)
+            if 'signal' in _tags:
                 _currentItem = _item
+                break
+            elif 'sigtip' in _tags:
+                # if selected item is sigtip, show or hide the signal
+                selectedid = _tags[1][3:]
+                _line = self.getSignalbyId(selectedid)
+                if _line.hidden:
+                    _line.show()
+                else:
+                    _line.hide()
                 break
         if _currentItem is not None:
             _tags = self.gettags(_currentItem)
@@ -877,7 +892,7 @@ class Plotter(Canvas):
 
     def __mouseLeave(self, event):
         self.delete('ruler')
-        self._rulerX = 0
+        self._rulerX = -1
 
     # below code just for test
 
@@ -890,15 +905,15 @@ class Plotter(Canvas):
                 "2": "rsvd"
             }
             self._lines.append(
-                Signal(id='Y1', canvas=self, history=100, color='#ff4'))
+                Signal(id='Y1', canvas=self, history=20000, color='#ff4'))
             self._lines.append(
-                Signal(id='Y2', canvas=self, history=10000, color='#f40', decimal=2, unit='A'))
+                Signal(id='Y2', canvas=self, history=20000, color='#f40', decimal=2, unit='A'))
             self._lines.append(Signal(id='Y3', canvas=self,
-                                      history=10000, color='#4af'))
+                                      history=20000, color='#4af'))
             self._lines.append(Signal(id='Y4', canvas=self,
-                                      history=10000, color='#080'))
+                                      history=20000, color='#080'))
             self._lines.append(
-                Signal(id='Y5', canvas=self, history=10000, color='yellow', valuetip=valuetip))
+                Signal(id='Y5', canvas=self, history=20000, color='purple', valuetip=valuetip))
             if self._save:
                 self._datafile = 'data/' + time.asctime(
                     time.localtime(time.time())) + '.csv'
@@ -922,7 +937,7 @@ class Plotter(Canvas):
         y2 = 20 + 5 * (random.random() - 0.5)
         y3 = 50
         y4 = -30 if (self.x % 20 == 0) else 20
-        y5 = random.randint(1, 2)
+        y5 = random.randint(-100, 2000)
 
         self._lines[0].addPoint(y1)
         self._lines[1].addPoint(y2)
@@ -975,6 +990,11 @@ class Plotter(Canvas):
     def _scrollTest(self):
         self._scrollOn = True if self._scrollOn is False else False
 
+    def _adapationTest(self):
+        for _line in self._lines:
+            if not _line.hidden:
+                _line.adaptation()
+
     def _loadTest(self):
         filename = filedialog.askopenfilename(
             title='载入数据', filetypes=[('csv', '*.csv')])
@@ -1003,7 +1023,9 @@ if __name__ == '__main__':
     tk.Button(root, text='sort', command=plot._sortTest).pack(side=tk.LEFT)
     tk.Button(root, text='resort', command=plot._resortTest).pack(side=tk.LEFT)
     tk.Button(root, text='scroll', command=plot._scrollTest).pack(side=tk.LEFT)
+    tk.Button(root, text='adapation', command=plot._adapationTest).pack(side=tk.LEFT)
     tk.Button(root, text='load data',
               command=plot._loadTest).pack(side=tk.LEFT)
+
 
     root.mainloop()
