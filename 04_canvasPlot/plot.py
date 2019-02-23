@@ -371,7 +371,7 @@ class Plotter(Canvas):
         self.configure(yscrollcommand=None,
                        xscrollcommand=self._canvashScrolled)
         self.bind("<Button-1>", self.__mouseDown)
-        self.bind("<MouseWheel>", self._mouseScale)
+        self.bind("<MouseWheel>", self.__mouseScale)
         self.bind("<B1-Motion>", self.__mouseDownMove)
         self.bind("<B1-ButtonRelease>", self.__mouseUp)
         self.bind("<Enter>", self.__mouseEnter)
@@ -403,7 +403,7 @@ class Plotter(Canvas):
         # this data is used to keep track of an item being dragged
         # in this app, only vertical position
         self._drag_data = {"sx": 0, "sy": 0, "x": 0, "y": 0, "item": None}
-        self.__initLineList(self._lineNum)
+        self._lines = []
         self.after(200, self.__initCanvas)
 
     def __main(self):
@@ -441,6 +441,7 @@ class Plotter(Canvas):
         self._width = self.winfo_width()
         self._height = self.winfo_height()
         self._originHeight = self.winfo_height()
+        self._initHeight = self.winfo_height()
         self.drawGridLines(50)
         self.configure(scrollregion=(0, 0, self._lengthx, self.winfo_height()))
         self.xview_moveto(0)
@@ -505,7 +506,8 @@ class Plotter(Canvas):
                 _row = int(i/5)
                 _column = i % 5
                 self.create_rectangle(
-                    self.canvasx(10)+gap*_column, 10+20*_row, gap*_column+self.canvasx(10) + 10, 20*_row+20, 
+                    self.canvasx(10)+gap*_column, 10+20*_row, gap *
+                    _column+self.canvasx(10) + 10, 20*_row+20,
                     fill=color, tags=('sigtip', 'tip'+line.id,))
                 self.create_text(self.canvasx(10) + 15 + gap*_column, 15+20*_row, text=line.id,
                                  fill=color, font=('微软雅黑', 8), tags=('sigtip', 'tip'+line.id,), anchor='w')
@@ -530,9 +532,8 @@ class Plotter(Canvas):
             valuey = _line.getScreenY(x)
             y = valuey
             # self.create_rectangle(x+5, y-15, x+15, y-5,  tags=('valuey', ), fill=_line.color, outline=_line.color)
-            self.create_text(x+5, y-5, text=tipy, fill=_line.color,
-                             font=('微软雅黑', 10), tags=('valuey', ), anchor='w')
-            pass
+            self.create_text(x+5, y-5, text=tipy, fill='#FFF',
+                             font=('微软雅黑', 9), tags=('valuey', ), anchor='w')
 
     def autoScrollToEnd(self):
         '''scrool canvas to signal end when needed
@@ -579,7 +580,8 @@ class Plotter(Canvas):
             width {int} -- distance between grid lines (default: {50})
         '''
 
-        offsety = math.floor(self._height / 2) + 1
+        _height = self.winfo_height()
+        offsety = math.floor(_height / 2) + 1
         offsetx = self._lengthx if self._lengthx > self.winfo_width() else self.winfo_width()
         self.delete('grid')
         self.create_line(
@@ -591,11 +593,11 @@ class Plotter(Canvas):
             xnum = math.floor(offsetx / width)
             for i in range(xnum):
                 self.create_line(
-                    (i * 50 + 50, 0, i * 50 + 50, self._height),
+                    (i * 50 + 50, 0, i * 50 + 50, _height),
                     fill="#708090",
                     dash=(1, 6),
                     tags=('grid'))
-            ynum = math.floor(self._height / (2 * width))
+            ynum = math.floor(_height / (2 * width))
             for j in range(ynum):
                 self.create_line(
                     (0, j * 50 + 50 + offsety, offsetx,
@@ -646,7 +648,8 @@ class Plotter(Canvas):
 
         self.delete('auxiliary')
         _height = self._height - 40  # 上下各留20像素
-        _lines = [line for line in self._lines if (len(line._points) > 0 and line.hidden != True)]
+        _lines = [line for line in self._lines if (
+            len(line._points) > 0 and line.hidden is not True)]
         if len(_lines) == 0:
             return
         _blockHeight = _height / len(_lines)
@@ -801,6 +804,8 @@ class Plotter(Canvas):
 
     def __resize(self, event):
         # self.update_idletasks()
+        if len(self._lines) == 0:
+            self._originHeight = self.winfo_height()
         _deltay = (self.winfo_height() - self._height) / 2
         self.drawGridLines(50)
         for _line in self._lines:
@@ -811,7 +816,7 @@ class Plotter(Canvas):
         self._height = self.winfo_height()
         self._width = self.winfo_width()
 
-    def _mouseScale(self, event):
+    def __mouseScale(self, event):
         if self._drag_data["item"] is None:
             return
         if (event.delta > 0):
@@ -897,7 +902,7 @@ class Plotter(Canvas):
     # below code just for test
 
     def _autoTest(self):
-        if len(self._lines) == self._lineNum:
+        if len(self._lines) != 5:
             self._lines = []
             valuetip = {
                 "0": "disable",
@@ -915,8 +920,9 @@ class Plotter(Canvas):
             self._lines.append(
                 Signal(id='Y5', canvas=self, history=20000, color='purple', valuetip=valuetip))
             if self._save:
-                self._datafile = 'data/' + time.asctime(
-                    time.localtime(time.time())) + '.csv'
+                self._datafile = 'data/' + \
+                    time.strftime("%Y_%m_%d_%H_%M_%S",
+                                  time.localtime()) + '.csv'
                 logger.debug(self._datafile)
                 with open(self._datafile, mode='a', encoding='gbk') as f:
                     self._dataWriter = csv.writer(f)
@@ -964,7 +970,7 @@ class Plotter(Canvas):
 
     def _selectTest(self):
         _line = self._lines[random.randint(0, 3)]
-        if _line.selected == True:
+        if _line.selected is True:
             _line.setSelected(False)
         else:
             _line.setSelected(True)
