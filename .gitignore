@@ -102,3 +102,5 @@ ENV/
 
 01_ctemplate/*.c
 01_ctemplate/*.h
+.DS_Store
+# 04_canvasPlot/data/*.csv
