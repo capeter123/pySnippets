@@ -1,0 +1,2 @@
+pyinstaller -F -w --upx-dir upx394w -i icon.ico helperAppTab.py 
+pyinstaller -F -w --noconsole --upx-dir upx394w -i icon.ico helperAppTab.py 
