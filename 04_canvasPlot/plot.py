@@ -396,6 +396,7 @@ class Plotter(Canvas):
         self._scrollOn = False
         self._lineNum = linenum
         self._firststart = True
+        self._scrollDelay = 0
         # this data is used to keep track of an item being dragged
         # in this app, only vertical position
         self._drag_data = {"sx": 0, "sy": 0, "x": 0, "y": 0, "item": None}
@@ -426,12 +427,10 @@ class Plotter(Canvas):
             self.setRulerValue()
 
             self.autoScrollToEnd()
-
+            
             self.setSignalTip()
 
-            self.after(self._interval, self.__loop)
-        else:
-            pass
+        self.after(self._interval, self.__loop)
 
     def __initCanvas(self):
         self.update_idletasks()
@@ -539,11 +538,13 @@ class Plotter(Canvas):
     def setScroll(self, on=True):
         self._scrollOn = on
 
-    def clear(self, p, color):  # Fill strip with background color
-        self.bg = color  # save background color for scroll
-        self.data = None  # clear previous data
-        self.x = 0
-        p.tk.call(p, 'put', color, '-to', 0, 0, p['width'], p['height'])
+    def clear(self):  # Fill strip with background color
+        self._loopOn = False
+        self._lines = []
+        self.drawGridLines()
+
+    def stopLoop(self):
+        self._loopOn = False
 
     def drawGridLines(self, width=50):
         '''draw grid lines
@@ -662,6 +663,11 @@ class Plotter(Canvas):
         # if self._loopOn is True:
         # return
 
+        self._width = self.winfo_width()
+        self._height = self.winfo_height()
+        self._originHeight = self.winfo_height()
+        self._initHeight = self.winfo_height()
+
         with open(filename, mode='r', encoding='gbk') as f:
             reader = csv.reader(f)
             ids = next(reader)
@@ -711,14 +717,18 @@ class Plotter(Canvas):
                 _line.setSelected(False)
                 _line.hide()
 
-    def initLineList(self, lineNumber, ids=[], names=[], decimals=[], valuetips=[], units=[]):
+    def initLineList(self, lineNumber, names=[], decimals=[], valuetips=[], units=[]):
         '''init all lines by given number and other params
 
         Arguments:
             number {int} -- number of lines
         '''
 
-        # self._color = []  #
+        self._width = self.winfo_width()
+        self._height = self.winfo_height()
+        self._originHeight = self.winfo_height()
+        self._initHeight = self.winfo_height()
+
         self._lines = []  #
         self._currentId = None  # 当前选择曲线id
         _list = list(colorList)
@@ -767,7 +777,7 @@ class Plotter(Canvas):
             self._datafile = 'data/' + \
                 time.strftime("%Y_%m_%d_%H_%M_%S",
                                 time.localtime()) + '.csv'
-            logger.debug(self._datafile)
+            # logger.debug(self._datafile)
             with open(self._datafile, mode='a', encoding='gbk', newline='') as f:
                 self._dataWriter = csv.writer(f)
                 self._dataWriter.writerow(
@@ -812,7 +822,10 @@ class Plotter(Canvas):
         '''
 
         if self._scrollOn is True:
-            maxlen = max([_line.getLineLen() for _line in self._lines])
+            try:
+                maxlen = max([_line.getLineLen() for _line in self._lines])
+            except Exception:
+                maxlen = 0
             if maxlen < self._width * 0.75:
                 maxlen = 0
             elif maxlen > self._lengthx - self._width * 0.25:
@@ -858,11 +871,12 @@ class Plotter(Canvas):
         for signal in self._lines:
             signal.setSelected(selected=False)
         self._drag_data['item'] = None
-        # print('down', event.x, event.y)
+        # print('down', event.x, event.y, self.canvasx(0))
         # _items = self.find_closest(event.x, event.y)
         # print('closest', self.gettags(_items[0]))
+        _x = self.canvasx(0)
         _items1 = self.find_overlapping(
-            event.x-3, event.y-3, event.x+3, event.y+3)
+            event.x-3+_x, event.y-3, event.x+3+_x, event.y+3)
         _currentItem = None
         for _item in _items1:
             _tags = self.gettags(_item)
@@ -872,6 +886,7 @@ class Plotter(Canvas):
             elif 'sigtip' in _tags:
                 # if selected item is sigtip, show or hide the signal
                 selectedid = _tags[1][3:]
+                print(selectedid, _tags)
                 _line = self.getSignalbyId(selectedid)
                 if _line.hidden:
                     _line.show()
@@ -989,13 +1004,13 @@ class Plotter(Canvas):
         self.x = self.x + 1
         self.after(10, self._autoTest)
 
-    def _toggleRuler(self):
+    def toggleRuler(self):
         self._rulerOn = True if self._rulerOn is False else False
 
-    def _toggleDrag(self):
+    def toggleDrag(self):
         self._dragOn = True if self._dragOn is False else False
 
-    def _toggleGrid(self):
+    def toggleGrid(self):
         self._gridOn = True if self._gridOn is False else False
         self.drawGridLines(50)
 
@@ -1006,6 +1021,9 @@ class Plotter(Canvas):
         else:
             _line.setSelected(True)
 
+    def toggleTip(self):
+        self._tipOn = True if self._tipOn is False else False
+
     def _restoreTest(self):
         for _line in self._lines:
             _line.restore()
@@ -1014,9 +1032,6 @@ class Plotter(Canvas):
         _scale = random.randint(1, 3)
         if self._drag_data['item'] is not None:
             self._drag_data['item'].scaleY(_scale)
-
-    def _tipTest(self):
-        self._tipOn = True if self._tipOn is False else False
 
     def _sortTest(self):
         self.sortSignals()
@@ -1053,15 +1068,15 @@ if __name__ == '__main__':
 
     tk.Button(root, text='start', command=plot._autoTest).pack(side=tk.LEFT)
     tk.Button(root, text='clear', command=plot._clear).pack(side=tk.LEFT)
-    tk.Button(root, text='ruler', command=plot._toggleRuler).pack(side=tk.LEFT)
-    tk.Button(root, text='drag', command=plot._toggleDrag).pack(side=tk.LEFT)
-    tk.Button(root, text='grid', command=plot._toggleGrid).pack(side=tk.LEFT)
+    tk.Button(root, text='ruler', command=plot.toggleRuler).pack(side=tk.LEFT)
+    tk.Button(root, text='drag', command=plot.toggleDrag).pack(side=tk.LEFT)
+    tk.Button(root, text='grid', command=plot.toggleGrid).pack(side=tk.LEFT)
     tk.Button(root, text='select', command=plot._selectTest).pack(side=tk.LEFT)
     tk.Button(root, text='restore',
               command=plot._restoreTest).pack(side=tk.LEFT)
     tk.Button(root, text='scale current',
               command=plot._scaleTest).pack(side=tk.LEFT)
-    tk.Button(root, text='tip', command=plot._tipTest).pack(side=tk.LEFT)
+    tk.Button(root, text='tip', command=plot.toggleTip).pack(side=tk.LEFT)
     tk.Button(root, text='sort', command=plot._sortTest).pack(side=tk.LEFT)
     tk.Button(root, text='resort', command=plot._resortTest).pack(side=tk.LEFT)
     tk.Button(root, text='scroll', command=plot._scrollTest).pack(side=tk.LEFT)
